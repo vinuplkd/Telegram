@@ -1,0 +1,28 @@
+name: CBSE Edu Desk Cloudflare backend checks
+
+on:
+  push:
+    branches: [ private-messenger ]
+    paths:
+      - 'cloudflare-worker/**'
+      - '.github/workflows/cloudflare-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: cloudflare-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cloudflare-worker/package.json
+      - run: npm install
+      - run: npx tsc --noEmit
