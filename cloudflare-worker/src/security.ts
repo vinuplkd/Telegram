@@ -50,9 +50,6 @@ export async function verifyToken(env: Env, token: string): Promise<SessionClaim
   const body = parts[0] + "." + parts[1];
   const expected = await hmac(env.TOKEN_SECRET, body);
   const supplied = fromBase64Url(parts[2]);
-  if (expected.length !== supplied.length || !crypto.subtle.timingSafeEqual) {
-    // Web Crypto does not expose timingSafeEqual in all Workers runtimes; compare via XOR below.
-  }
   let diff = expected.length ^ supplied.length;
   for (let i = 0; i < Math.min(expected.length, supplied.length); i++) diff |= expected[i] ^ supplied[i];
   if (diff !== 0) throw new HttpError(401, "Invalid session");
