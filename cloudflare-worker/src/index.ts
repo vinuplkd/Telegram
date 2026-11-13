@@ -121,7 +121,7 @@ export default {
       } else {
         throw new HttpError(404, "Not found");
       }
-      return cors(request, response);
+      return response.status === 101 ? response : cors(request, response);
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       const message = error instanceof Error ? error.message : "Internal server error";
