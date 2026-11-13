@@ -9,7 +9,7 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
 async function body<T>(request: Request): Promise<T> {
-  try { return await request.json<T>(); }
+  try { return await request.json() as T; }
   catch { throw new HttpError(400, "Invalid JSON body"); }
 }
 
@@ -62,6 +62,31 @@ export default {
         const ttl = Math.min(86400, Math.max(900, Number(env.TOKEN_TTL_SECONDS ?? 43200)));
         const token = await issueToken(env, { sub: user.id, username: user.username, iat: now, exp: now + ttl });
         response = json({ accessToken: token, expiresIn: ttl, user: { id: user.id, username: user.username } });
+      } else if (url.pathname === "/v1/media" && request.method === "POST") {
+        const user = await authenticate(request, env);
+        const recipientId = request.headers.get("X-Recipient-Id") ?? "";
+        const contentType = request.headers.get("Content-Type") ?? "application/octet-stream";
+        const contentLength = Number(request.headers.get("Content-Length") ?? "0");
+        if (!recipientId || !contentLength || contentLength > 15 * 1024 * 1024) throw new HttpError(413, "Attachment must be between 1 byte and 15 MB");
+        const recipient = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND active = 1").bind(recipientId).first();
+        if (!recipient || recipientId === user.sub) throw new HttpError(403, "Invalid conversation partner");
+        const id = crypto.randomUUID();
+        const key = "private/" + id;
+        await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: "application/octet-stream" } });
+        await env.DB.prepare(
+          "INSERT INTO media_objects (id, owner_id, recipient_id, object_key, content_type, byte_size) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(id, user.sub, recipientId, key, contentType, contentLength).run();
+        response = json({ mediaId: id, byteSize: contentLength }, 201);
+      } else if (url.pathname.startsWith("/v1/media/") && request.method === "GET") {
+        const user = await authenticate(request, env);
+        const id = url.pathname.slice("/v1/media/".length);
+        const item = await env.DB.prepare(
+          "SELECT owner_id, recipient_id, object_key FROM media_objects WHERE id = ?"
+        ).bind(id).first<{ owner_id: string; recipient_id: string; object_key: string }>();
+        if (!item || (item.owner_id !== user.sub && item.recipient_id !== user.sub)) throw new HttpError(404, "Attachment not found");
+        const object = await env.MEDIA.get(item.object_key);
+        if (!object) throw new HttpError(404, "Attachment not found");
+        response = new Response(object.body, { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "no-store" } });
       } else if (url.pathname === "/v1/messages" && request.method === "GET") {
         const user = await authenticate(request, env);
         const otherId = url.searchParams.get("with");
