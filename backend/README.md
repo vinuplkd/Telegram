@@ -1,5 +1,5 @@
-# Backend status — Supabase selected
+# Backend status — Cloudflare selected
 
-The earlier Matrix/Synapse scaffold is superseded and must not be deployed for CBSE Edu Desk. Firebase was considered but is not being used because the user's Firebase capacity is full. The selected backend is managed Supabase. No custom domain is required.
+The earlier Matrix/Synapse scaffold is superseded and must not be deployed for CBSE Edu Desk. Firebase and Supabase were considered but are not selected. The chosen backend is Cloudflare Workers + D1 + SQLite-backed Durable Objects + R2. A custom domain is not required; the Worker uses a workers.dev endpoint.
 
-See `NATIVE_ANDROID_PLAN.md` in the repository root for the current architecture, two-user security model, and setup requirements.
+See `cloudflare-worker/README.md` for deployment instructions and `NATIVE_ANDROID_PLAN.md` for the current architecture and security milestones.
