@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local development only. Never commit real values.
+TOKEN_SECRET=REPLACE_WITH_RANDOM_32_BYTE_OR_LONGER_SECRET
+BOOTSTRAP_SECRET=REPLACE_WITH_DIFFERENT_RANDOM_SECRET
