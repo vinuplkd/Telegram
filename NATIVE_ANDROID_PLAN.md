@@ -1,61 +1,72 @@
-# CBSE Edu Desk — Native Android + Supabase plan
+# CBSE Edu Desk — Native Android + Cloudflare plan
 
-This is the selected architecture. The product is a native Android APK, not a web app. A custom domain is not required.
+The product is a native Android APK, not a web application. No custom domain is required; Cloudflare provides a workers.dev endpoint.
 
-## Selected stack
+## Selected architecture
 
-- Android: native Kotlin + Jetpack Compose.
+- Native Android: Kotlin + Jetpack Compose.
 - Build: GitHub Actions cloud runner; no Android Studio installation required on the user's Windows PC.
-- Backend: managed Supabase project; the project-provided HTTPS endpoint is used, so no custom domain is needed.
-- Authentication: Supabase Auth with exactly two administratively provisioned email/password identities. No phone authentication and no public sign-up UI.
-- Database/realtime: PostgreSQL + Supabase Realtime.
-- Attachments: private Supabase Storage bucket with strict access policies.
-- Push: Android push notifications require a separate delivery integration; do not assume Supabase Realtime alone delivers notifications while the app is closed.
-- Local app lock: individual 4-digit PINs, stored only as a locally verified unlock factor. The PIN must never be sent to Supabase or stored in plaintext.
-- Device key protection: Android Keystore; derive/unlock local encryption keys using a suitable password KDF and enforce retry throttling.
-- Message confidentiality: client-side end-to-end encryption. HTTPS, Supabase Auth and Row Level Security are not themselves end-to-end encryption.
+- API: Cloudflare Worker.
+- Persistent data: Cloudflare D1.
+- Realtime wake-up notifications: SQLite-backed Cloudflare Durable Object WebSocket room.
+- Encrypted attachments: private Cloudflare R2 bucket.
+- Android API transport: OkHttp over HTTPS and WSS.
+- Identity: exactly two manually provisioned server accounts; no public registration and no phone-number login.
+- Local app lock: separate four-digit PIN per person. PIN must never be sent to the server or stored in plaintext.
+- Message confidentiality: client-side end-to-end encryption is a required next implementation milestone. The backend currently stores ciphertext/nonce fields but the Android encryption/key-exchange implementation is not complete.
 
-## Two-person access model
+## Two-person access and security model
 
-- Create exactly two Supabase Auth users administratively.
-- Disable public sign-ups; do not implement public account creation in the app.
-- Use database Row Level Security policies that explicitly authorise only the two approved user IDs and only their shared conversation.
-- Use private Storage buckets and policies that restrict media access to those two users.
-- Never put the Supabase service-role key in the APK or GitHub. The publishable/anon key may be embedded in the client, but only alongside strict RLS policies.
-- The 4-digit PIN is not the network password or server credential.
+- Worker provisioning endpoint allows at most two accounts and is protected by a high-entropy bootstrap secret.
+- After provisioning both accounts, delete the BOOTSTRAP_SECRET so the provisioning endpoint is disabled.
+- Users authenticate with separately generated strong server passwords. Never use the 4-digit PIN as a server password.
+- Session tokens are HMAC-signed and time-limited.
+- D1 stores password hashes, user records, encrypted message envelopes and attachment metadata.
+- R2 bucket is private; attachments are fetched through authenticated Worker routes.
+- Never put TOKEN_SECRET, BOOTSTRAP_SECRET, or other server secrets in the APK or GitHub.
+- The public repository currently contains development scaffolding. Before real private messages are used, complete E2EE, key verification/recovery, login rate limiting, session revocation and a security review.
 
-## Supabase setup required from the owner
+## Free-plan limits
 
-1. Create a Supabase project named CBSE Edu Desk.
-2. Keep the generated project URL; no custom domain is required.
-3. Enable email/password authentication and disable public sign-ups.
-4. Create the two approved users administratively only after the security policies are ready.
-5. Create the private conversation and message schema.
-6. Enable Realtime for the required message tables.
-7. Create a private Storage bucket and policies for attachments.
-8. Provide the project URL and publishable key for the Android client. Never provide the service-role key.
-9. Check current plan limits and backups before relying on it for long-term storage.
+Cloudflare Free is not unlimited. Published limits include 100,000 Worker requests/day; D1 Free has 500 MB per database and 5 GB total account storage with daily read/write allowances; SQLite-backed Durable Objects have their own daily compute/request/storage allowances; R2 Standard includes 10 GB-month storage, 1 million Class A and 10 million Class B operations/month. Exceeding limits can cause requests or operations to fail until reset or require an upgrade. Confirm current limits in the official Cloudflare pricing/limits pages before launch.
 
-## Product requirements
+## Setup required from the owner
 
-- Two users only; no phone-number login.
-- Separate PIN per user; immediate relock whenever app leaves foreground.
-- Telegram-inspired chat UI with distinct CBSE Edu Desk identity.
-- Text, reply, edit/delete, reactions, delivery/read states, presence/last-seen.
-- Encrypted media, files and voice messages.
-- Push notifications.
-- Voice/video calls later, using WebRTC with signalling plus TURN relay.
+1. Create a free Cloudflare account.
+2. Enable Workers and the workers.dev subdomain; no custom domain purchase is needed.
+3. Install Node.js LTS on the Windows computer.
+4. From cloudflare-worker run npm install and npx wrangler login.
+5. Create D1 database cbse-edu-desk and R2 bucket cbse-edu-desk-media.
+6. Put the returned D1 database_id into wrangler.toml.
+7. Apply migration 0001_initial.sql.
+8. Set TOKEN_SECRET and BOOTSTRAP_SECRET using Wrangler secrets; deploy the Worker.
+9. Provision exactly two accounts, then delete BOOTSTRAP_SECRET.
+10. Set the deployed Worker URL as API_BASE_URL in the Android Gradle file and rebuild the APK.
 
-## Critical implementation note
+Detailed commands are in cloudflare-worker/README.md.
 
-The downloaded Telegram Android source is tightly coupled to Telegram's MTProto protocol, Telegram accounts, Telegram storage, push and call infrastructure. Changing its name or login screen does not connect it to Supabase. The independent messenger is a separate native Kotlin Android application. Keep the Telegram fork as a UI/feature reference only and comply with its applicable open-source licence if any code is reused.
+## Product milestones
+
+1. Complete backend deployment and two-account provisioning.
+2. Implement Android login and securely store session tokens.
+3. Implement local PIN creation/unlock, immediate relock on app background, and Android Keystore protection.
+4. Implement and independently review end-to-end message encryption and device/key verification.
+5. Complete chat UI, replies, editing/deleting, reactions, receipts, presence and message search.
+6. Complete encrypted media/voice attachments.
+7. Add push notifications with a secure delivery path.
+8. Add voice/video calls later using WebRTC signalling and TURN relay.
+9. Build signed release APK and test on both devices.
 
 ## Current status
 
-- Firebase rejected because the user's Firebase account/project capacity is full.
-- Supabase selected as the backend.
-- Custom domain not required.
-- No Supabase project is connected yet.
-- No user credentials have been created.
-- No independent production-ready CBSE Edu Desk APK has been built yet.
-- Earlier Matrix/Synapse scaffold and Firebase dependencies are superseded.
+- Cloudflare Workers + D1 + Durable Objects + R2 selected.
+- Backend source scaffold committed in cloudflare-worker/.
+- Native Kotlin app has an OkHttp API client scaffold.
+- No Cloudflare account has been connected or Worker deployed yet.
+- No D1 database or R2 bucket has been created yet.
+- No user accounts have been provisioned.
+- No production-ready APK or end-to-end encrypted messenger is complete yet.
+
+## Telegram source note
+
+The downloaded Telegram Android source is tightly coupled to Telegram MTProto, Telegram accounts, storage, push and calls. Renaming it does not connect it to Cloudflare. The independent messenger is being built as a separate native Kotlin Android app. The Telegram fork remains a UI/feature reference only; comply with its applicable open-source licence if reusing code.
