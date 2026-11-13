@@ -1,4 +1,4 @@
-# CBSE Edu Desk — Native Android + Firebase plan
+# CBSE Edu Desk — Native Android + Supabase plan
 
 This is the selected architecture. The product is a native Android APK, not a web app. A custom domain is not required.
 
@@ -6,53 +6,56 @@ This is the selected architecture. The product is a native Android APK, not a we
 
 - Android: native Kotlin + Jetpack Compose.
 - Build: GitHub Actions cloud runner; no Android Studio installation required on the user's Windows PC.
-- Authentication: Firebase Authentication with two administratively created email/password identities. No phone authentication and no public sign-up UI.
-- Database/realtime: Cloud Firestore.
-- Attachments: Firebase Storage, with strict per-user/conversation access rules.
-- Push: Firebase Cloud Messaging (FCM).
-- Local app lock: individual 4-digit PINs, stored only as a locally verified unlock factor. The PIN must never be sent to Firebase or stored in plaintext.
+- Backend: managed Supabase project; the project-provided HTTPS endpoint is used, so no custom domain is needed.
+- Authentication: Supabase Auth with exactly two administratively provisioned email/password identities. No phone authentication and no public sign-up UI.
+- Database/realtime: PostgreSQL + Supabase Realtime.
+- Attachments: private Supabase Storage bucket with strict access policies.
+- Push: Android push notifications require a separate delivery integration; do not assume Supabase Realtime alone delivers notifications while the app is closed.
+- Local app lock: individual 4-digit PINs, stored only as a locally verified unlock factor. The PIN must never be sent to Supabase or stored in plaintext.
 - Device key protection: Android Keystore; derive/unlock local encryption keys using a suitable password KDF and enforce retry throttling.
-- Message confidentiality: client-side end-to-end encryption. Firebase TLS, Authentication and Security Rules are not themselves end-to-end encryption.
+- Message confidentiality: client-side end-to-end encryption. HTTPS, Supabase Auth and Row Level Security are not themselves end-to-end encryption.
 
 ## Two-person access model
 
-- Create exactly two Firebase Auth users manually in the Firebase Console.
-- Do not implement public sign-up or account creation in the app.
-- Store an explicit allowlist of the two Firebase UIDs in trusted backend configuration / Firestore Security Rules.
-- Rules must deny all other users and prevent either account from reading or writing unrelated conversations.
-- Never put Firebase Admin SDK credentials or service-account private keys in the APK or GitHub.
-- Firebase client configuration is not a secret, but Security Rules and Authentication are mandatory; hiding a UI button is not access control.
+- Create exactly two Supabase Auth users administratively.
+- Disable public sign-ups; do not implement public account creation in the app.
+- Use database Row Level Security policies that explicitly authorise only the two approved user IDs and only their shared conversation.
+- Use private Storage buckets and policies that restrict media access to those two users.
+- Never put the Supabase service-role key in the APK or GitHub. The publishable/anon key may be embedded in the client, but only alongside strict RLS policies.
+- The 4-digit PIN is not the network password or server credential.
 
-## Firebase setup required from the owner
+## Supabase setup required from the owner
 
-1. Create a Firebase project named CBSE Edu Desk.
-2. Add an Android app. The Android application ID is fixed as com.cbsedudesk.mobile. Register this exact, case-sensitive ID in Firebase; do not use a different package ID.
-3. Enable Email/Password sign-in in Authentication.
-4. Create the two approved user accounts manually after the app/backend policy is ready.
-5. Enable Cloud Firestore.
-6. Enable Cloud Storage if image/video/file/voice attachments are required. Check current Firebase billing and storage requirements in the Console before enabling; do not assume the free tier covers all storage use.
-7. Enable Cloud Messaging for notifications.
-8. Download google-services.json only after the final Android package ID has been chosen. Keep it out of public repositories; configure it as a protected GitHub Actions secret or add it to a private repository with appropriate care. Never upload service-account JSON.
+1. Create a Supabase project named CBSE Edu Desk.
+2. Keep the generated project URL; no custom domain is required.
+3. Enable email/password authentication and disable public sign-ups.
+4. Create the two approved users administratively only after the security policies are ready.
+5. Create the private conversation and message schema.
+6. Enable Realtime for the required message tables.
+7. Create a private Storage bucket and policies for attachments.
+8. Provide the project URL and publishable key for the Android client. Never provide the service-role key.
+9. Check current plan limits and backups before relying on it for long-term storage.
 
 ## Product requirements
 
 - Two users only; no phone-number login.
-- Separate PIN per user; immediate relock whenever the app leaves foreground.
+- Separate PIN per user; immediate relock whenever app leaves foreground.
 - Telegram-inspired chat UI with distinct CBSE Edu Desk identity.
-- Text, reply, edit/delete, reactions, delivery/read states, presence/last seen.
+- Text, reply, edit/delete, reactions, delivery/read states, presence/last-seen.
 - Encrypted media, files and voice messages.
 - Push notifications.
-- Voice/video calls later, using WebRTC with a signalling channel and TURN relay. Firebase alone does not provide a complete calling system.
+- Voice/video calls later, using WebRTC with signalling plus TURN relay.
 
 ## Critical implementation note
 
-The downloaded Telegram Android source is tightly coupled to Telegram's MTProto protocol, Telegram accounts, Telegram storage, push and call infrastructure. Changing its name or login screen does not connect it to Firebase. The independent messenger should be a separate native Kotlin Android application. Keep the Telegram fork as a UI/feature reference only and comply with its applicable open-source licence if any code is reused.
+The downloaded Telegram Android source is tightly coupled to Telegram's MTProto protocol, Telegram accounts, Telegram storage, push and call infrastructure. Changing its name or login screen does not connect it to Supabase. The independent messenger is a separate native Kotlin Android application. Keep the Telegram fork as a UI/feature reference only and comply with its applicable open-source licence if any code is reused.
 
 ## Current status
 
-- Firebase selected as backend.
+- Firebase rejected because the user's Firebase account/project capacity is full.
+- Supabase selected as the backend.
 - Custom domain not required.
-- No Firebase project is connected yet.
-- No Firebase credentials or user accounts have been created.
-- No independent CBSE Edu Desk APK has been built yet.
-- The previously created Matrix/Synapse scaffold is superseded and is not the selected backend.
+- No Supabase project is connected yet.
+- No user credentials have been created.
+- No independent production-ready CBSE Edu Desk APK has been built yet.
+- Earlier Matrix/Synapse scaffold and Firebase dependencies are superseded.
