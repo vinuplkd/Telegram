@@ -3,7 +3,7 @@ name: Android APK build
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ master, private-messenger ]
 
 permissions:
   contents: read
