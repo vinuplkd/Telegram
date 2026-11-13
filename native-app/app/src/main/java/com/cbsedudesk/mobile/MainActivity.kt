@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
                         )
                         LinearProgressIndicator(modifier = Modifier.padding(top = 28.dp))
                         Text(
-                            "Firebase connection will be configured next.",
+                            "Cloudflare private messaging service will be connected after deployment.",
                             modifier = Modifier.padding(top = 16.dp)
                         )
                     }
