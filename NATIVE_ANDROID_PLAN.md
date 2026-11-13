@@ -1,44 +1,58 @@
-# CBSE Edu Desk — Native Android direction (supersedes Matrix hosting draft)
+# CBSE Edu Desk — Native Android + Firebase plan
 
-The product is a native Android APK. It is not a website or a web app.
+This is the selected architecture. The product is a native Android APK, not a web app. A custom domain is not required.
 
-## Decision
+## Selected stack
 
-Do not require the user to buy or configure a custom domain. Use a managed Supabase project as the private data/realtime backend. Supabase provides a project HTTPS endpoint; the Android application remains a native Kotlin application installed directly on the two phones.
+- Android: native Kotlin + Jetpack Compose.
+- Build: GitHub Actions cloud runner; no Android Studio installation required on the user's Windows PC.
+- Authentication: Firebase Authentication with two administratively created email/password identities. No phone authentication and no public sign-up UI.
+- Database/realtime: Cloud Firestore.
+- Attachments: Firebase Storage, with strict per-user/conversation access rules.
+- Push: Firebase Cloud Messaging (FCM).
+- Local app lock: individual 4-digit PINs, stored only as a locally verified unlock factor. The PIN must never be sent to Firebase or stored in plaintext.
+- Device key protection: Android Keystore; derive/unlock local encryption keys using a suitable password KDF and enforce retry throttling.
+- Message confidentiality: client-side end-to-end encryption. Firebase TLS, Authentication and Security Rules are not themselves end-to-end encryption.
 
-The earlier self-hosted Matrix/Synapse + PostgreSQL scaffold is not the selected deployment route and must not be treated as deployed or ready for use.
+## Two-person access model
 
-## Native app architecture
+- Create exactly two Firebase Auth users manually in the Firebase Console.
+- Do not implement public sign-up or account creation in the app.
+- Store an explicit allowlist of the two Firebase UIDs in trusted backend configuration / Firestore Security Rules.
+- Rules must deny all other users and prevent either account from reading or writing unrelated conversations.
+- Never put Firebase Admin SDK credentials or service-account private keys in the APK or GitHub.
+- Firebase client configuration is not a secret, but Security Rules and Authentication are mandatory; hiding a UI button is not access control.
 
-- Android client: Kotlin + Jetpack Compose, built as an APK using GitHub Actions.
-- Backend: Supabase Auth (provisioned identities only), PostgreSQL, Realtime and private Storage.
-- Exactly two approved accounts. Disable public sign-up; create the two users administratively.
-- No phone-number login. Use non-phone credentials/device sessions for backend authentication.
-- Four-digit PIN is only a local app lock. Never send it to Supabase or store it in plaintext. Protect locally encrypted key material using Android Keystore, use a memory-hard KDF and rate-limit retries.
-- App locks as soon as it leaves the foreground and requires PIN on resume.
-- Message contents and attachments must be encrypted on the client before upload; Supabase transport/storage alone is not end-to-end encryption.
-- Enforce database row-level security so each user can access only the private conversation and its own authorised records. No client-side-only access restrictions.
-- Push notifications and reliable background delivery require separate platform setup; calling requires a signalling service and TURN relay. These are later milestones.
+## Firebase setup required from the owner
 
-## Critical scope correction
+1. Create a Firebase project named CBSE Edu Desk.
+2. Add an Android app. The final application ID will be selected in the native project before registration; do not register an arbitrary package ID yet.
+3. Enable Email/Password sign-in in Authentication.
+4. Create the two approved user accounts manually after the app/backend policy is ready.
+5. Enable Cloud Firestore.
+6. Enable Cloud Storage if image/video/file/voice attachments are required. Check current Firebase billing and storage requirements in the Console before enabling; do not assume the free tier covers all storage use.
+7. Enable Cloud Messaging for notifications.
+8. Download google-services.json only after the final Android package ID has been chosen. Keep it out of public repositories; configure it as a protected GitHub Actions secret or add it to a private repository with appropriate care. Never upload service-account JSON.
 
-The downloaded Telegram client is tightly coupled to Telegram accounts, MTProto, Telegram storage, push and call services. Changing its name does not convert it into a client for Supabase. The independent app should be a separate native Android project rather than a superficial Telegram rebrand. Keep the Telegram fork only as a UI/feature reference and preserve its original branch.
+## Product requirements
 
-## Required setup input
+- Two users only; no phone-number login.
+- Separate PIN per user; immediate relock whenever the app leaves foreground.
+- Telegram-inspired chat UI with distinct CBSE Edu Desk identity.
+- Text, reply, edit/delete, reactions, delivery/read states, presence/last seen.
+- Encrypted media, files and voice messages.
+- Push notifications.
+- Voice/video calls later, using WebRTC with a signalling channel and TURN relay. Firebase alone does not provide a complete calling system.
 
-To connect the native Android app to Supabase, the owner must provide the Supabase project URL and publishable/anon client key (never the service-role key). The project should be dedicated to this app. Do not put database passwords, service-role keys or user passwords into the APK or GitHub.
+## Critical implementation note
 
-## Milestones
-
-1. Create a clean native Kotlin Android project and cloud APK build.
-2. Connect the Supabase project using the public client key and strict RLS.
-3. Provision exactly two users and disable public sign-up.
-4. Implement local PIN lock and Keystore-backed key protection.
-5. Implement encrypted one-to-one messages, receipts and media.
-6. Add presence and push.
-7. Add calls using signalling plus TURN.
-8. Test, sign and distribute release APK.
+The downloaded Telegram Android source is tightly coupled to Telegram's MTProto protocol, Telegram accounts, Telegram storage, push and call infrastructure. Changing its name or login screen does not connect it to Firebase. The independent messenger should be a separate native Kotlin Android application. Keep the Telegram fork as a UI/feature reference only and comply with its applicable open-source licence if any code is reused.
 
 ## Current status
 
-This is an architecture decision and implementation plan only. No Supabase project has been connected, no users have been created, and no independent messenger APK has been built yet.
+- Firebase selected as backend.
+- Custom domain not required.
+- No Firebase project is connected yet.
+- No Firebase credentials or user accounts have been created.
+- No independent CBSE Edu Desk APK has been built yet.
+- The previously created Matrix/Synapse scaffold is superseded and is not the selected backend.
