@@ -26,7 +26,7 @@ This is the selected architecture. The product is a native Android APK, not a we
 ## Firebase setup required from the owner
 
 1. Create a Firebase project named CBSE Edu Desk.
-2. Add an Android app. The final application ID will be selected in the native project before registration; do not register an arbitrary package ID yet.
+2. Add an Android app. The Android application ID is fixed as com.cbsedudesk.mobile. Register this exact, case-sensitive ID in Firebase; do not use a different package ID.
 3. Enable Email/Password sign-in in Authentication.
 4. Create the two approved user accounts manually after the app/backend policy is ready.
 5. Enable Cloud Firestore.
