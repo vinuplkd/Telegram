@@ -1,0 +1,16 @@
+{
+  "name": "cbse-edu-desk-api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create cbse-edu-desk",
+    "db:migrate": "wrangler d1 migrations apply cbse-edu-desk --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20261113.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.45.0"
+  }
+}
