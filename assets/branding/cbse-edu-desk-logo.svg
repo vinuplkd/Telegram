@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+<title id="title">CBSE Edu Desk</title>
+<rect width="1024" height="1024" rx="150" fill="#071B3A"/>
+<rect x="22" y="22" width="980" height="980" rx="130" fill="none" stroke="#D6A43A" stroke-width="18"/>
+<path d="M170 520 512 620 854 520v180L512 805 170 700Z" fill="#F4F7FB" stroke="#D6A43A" stroke-width="15"/>
+<path d="M512 620v185" stroke="#D6A43A" stroke-width="14"/>
+<path d="m512 165 250 100-250 100-250-100Z" fill="#0877C9"/>
+<path d="M365 295v100q147 95 294 0V295l-147 70Z" fill="#07549A"/>
+<path d="M760 265v180m-20 0h40l-20 45Z" fill="#E5B84D"/>
+<path d="M500 400h24v180h-24z" fill="#D6A43A"/>
+<text x="512" y="890" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="100" fill="#fff">CBSE</text>
+<text x="512" y="970" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="62" fill="#E5B84D">Edu Desk</text>
+</svg>
