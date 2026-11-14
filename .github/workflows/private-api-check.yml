@@ -1,0 +1,31 @@
+name: Private API type check
+
+on:
+  push:
+    branches: [ private-messenger ]
+    paths:
+      - "private-backend/**"
+      - ".github/workflows/private-api-check.yml"
+  pull_request:
+    branches: [ private-messenger ]
+    paths:
+      - "private-backend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: private-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: private-backend/package-lock.json
+      - run: npm install
+      - run: npm run typecheck
