@@ -8426,16 +8426,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     }
                 }
             };
-            if (SharedConfig.appLocked) {
-                AndroidUtilities.runOnUIThread(lockRunnable, 1000);
-                if (BuildVars.LOGS_ENABLED) {
-                    FileLog.d("schedule app lock in " + 1000);
-                }
-            } else if (SharedConfig.autoLockIn != 0) {
-                if (BuildVars.LOGS_ENABLED) {
-                    FileLog.d("schedule app lock in " + (((long) SharedConfig.autoLockIn) * 1000 + 1000));
-                }
-                AndroidUtilities.runOnUIThread(lockRunnable, ((long) SharedConfig.autoLockIn) * 1000 + 1000);
+            // CBSE Edu Desk privacy: lock immediately whenever the app leaves the foreground.
+            // The user must first configure their own four-digit PIN in Passcode settings.
+            SharedConfig.appLocked = true;
+            AndroidUtilities.runOnUIThread(lockRunnable, 0);
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("CBSE Edu Desk: immediate app lock scheduled");
             }
         } else {
             SharedConfig.lastPauseTime = 0;
