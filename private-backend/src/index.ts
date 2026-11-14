@@ -73,6 +73,16 @@ export default {
       try { input = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
       if (!input.username || !input.password) return json({ error: "Username and password required" }, 400);
 
+      // Basic per-IP login throttling: 10 attempts in a rolling 15-minute window.
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      const now = Math.floor(Date.now() / 1000);
+      await env.DB.prepare("DELETE FROM auth_attempts WHERE attempted_at < ?").bind(now - 900).run();
+      const attempts = await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM auth_attempts WHERE ip_address = ? AND attempted_at >= ?"
+      ).bind(ip, now - 900).first<{ count: number }>();
+      if ((attempts?.count ?? 0) >= 10) return json({ error: "Too many login attempts. Try again in 15 minutes." }, 429);
+      await env.DB.prepare("INSERT INTO auth_attempts (ip_address, attempted_at) VALUES (?, ?)").bind(ip, now).run();
+
       const user = await env.DB.prepare(
         "SELECT * FROM users WHERE username = ? AND active = 1"
       ).bind(input.username.trim()).first<UserRow>();
