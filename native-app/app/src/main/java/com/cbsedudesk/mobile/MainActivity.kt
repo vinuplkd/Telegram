@@ -141,7 +141,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(Modifier.height(8.dp))
                                 Text("This PIN stays on this device. It is not sent to the server.", color = Muted, fontSize = 13.sp)
                                 Spacer(Modifier.height(20.dp))
-                                PinField(pin, { pin = it.take(4).filter(Char::isDigit); localError = "" }, "Create 4-digit PIN")
+                                PinField(pin, { pin = it.take(4).filter { digit -> digit.isDigit() }; localError = "" }, "Create 4-digit PIN")
                                 Spacer(Modifier.height(12.dp))
                                 PinField(confirmPin, { confirmPin = it.take(4).filter(Char::isDigit); localError = "" }, "Confirm 4-digit PIN")
                                 Spacer(Modifier.height(18.dp))
@@ -220,7 +220,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if (sessionToken.isNotBlank() && page != AppPage.LOGIN) {
-            page = AppPage.UNLOCK
+            page = if (SecureVault.get(this, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
         }
     }
 }
