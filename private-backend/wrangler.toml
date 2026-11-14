@@ -1,0 +1,14 @@
+name = "cbse-edu-desk-private-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-14"
+
+# Create a NEW D1 database for this messenger. Do not bind the existing
+# CBSE Edu Desk school database here.
+[[d1_databases]]
+binding = "DB"
+database_name = "cbse-edu-desk-private"
+database_id = "REPLACE_WITH_NEW_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Configure these as Worker secrets, never commit their values:
+# wrangler secret put SESSION_SIGNING_SECRET
