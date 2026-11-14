@@ -4,8 +4,8 @@ compatibility_date = "2026-11-13"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "cbse-edu-desk"
-database_id = "57c5afec-3a22-4861-aba5-eae1c4d14abd"
+database_name = "cbse-edu-desk-chat-db"
+database_id = "cafdd8c4-8bee-491f-aadb-9fafc5d1b6f7"
 
 [[r2_buckets]]
 binding = "MEDIA"
