@@ -42,7 +42,7 @@ function randomToken(): string {
 }
 
 async function currentUser(request: Request, env: Env): Promise<UserRow | null> {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
   const tokenHash = await sha256(token);
   const row = await env.DB.prepare(
@@ -167,7 +167,7 @@ export default {
       return json({ id, senderId: user!.id, recipientId: recipient.id, body, replyToId: input.replyToId ?? null }, 201);
     }
 
-    const messageMatch = url.pathname.match(/^\\/messages\\/([0-9a-f-]+)(?:\\/(read|reaction))?$/i);
+    const messageMatch = url.pathname.match(/^\/messages\/([0-9a-f-]+)(?:\/(read|reaction))?$/i);
     if (messageMatch) {
       const messageId = messageMatch[1];
       const action = messageMatch[2] ?? "";
