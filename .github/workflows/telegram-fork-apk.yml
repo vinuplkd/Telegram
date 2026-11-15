@@ -44,17 +44,6 @@ jobs:
           sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
           yes | sdkmanager --licenses
 
-      - name: Create temporary signing key for this build
-        run: |
-          mkdir -p TMessagesProj/config
-          keytool -genkeypair -v \
-            -keystore TMessagesProj/config/release.keystore \
-            -storepass android \
-            -alias androidkey \
-            -keypass android \
-            -dname "CN=CBSE Edu Desk, OU=Private, O=CBSE Edu Desk, L=Palakkad, ST=Kerala, C=IN" \
-            -keyalg RSA -keysize 2048 -validity 10000
-
       - name: Build original Telegram Android app
         run: |
           chmod +x ./gradlew
