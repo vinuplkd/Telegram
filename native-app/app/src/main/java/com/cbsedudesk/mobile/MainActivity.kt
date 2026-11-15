@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
     private var partnerId by mutableStateOf("")
     private var messages by mutableStateOf<List<JSONObject>>(emptyList())
     private var loadingMessages by mutableStateOf(false)
+    private var liveSocket: okhttp3.WebSocket? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -232,6 +233,19 @@ class MainActivity : ComponentActivity() {
                     val partner = response.optJSONObject("partner")
                     partnerName = partner?.optString("username").orEmpty()
                     partnerId = partner?.optString("id").orEmpty()
+                    if (partnerId.isNotBlank() && liveSocket == null) {
+                        liveSocket = CloudflareApi.connectLive(sessionToken, object : okhttp3.WebSocketListener() {
+                            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                                runOnUiThread { loadConversation() }
+                            }
+                            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
+                                liveSocket = null
+                            }
+                            override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                                liveSocket = null
+                            }
+                        })
+                    }
                     if (partnerId.isBlank()) {
                         messages = emptyList()
                         loadingMessages = false
@@ -256,6 +270,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        liveSocket?.close(1000, "App backgrounded")
+        liveSocket = null
         if (sessionToken.isNotBlank() && page != AppPage.LOGIN) {
             page = if (SecureVault.get(this, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
         }
