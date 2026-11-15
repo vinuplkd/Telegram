@@ -1,0 +1,69 @@
+name: Build original Telegram interface - CBSE Edu Desk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ private-messenger ]
+    paths:
+      - 'TMessagesProj/**'
+      - 'TMessagesProj_App/**'
+      - 'TMessagesProj_Modules/**'
+      - 'jlatexmath/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - '.github/workflows/telegram-fork-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
+
+      - name: Install Android build components
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          yes | sdkmanager --licenses
+
+      - name: Create temporary signing key for this build
+        run: |
+          mkdir -p TMessagesProj/config
+          keytool -genkeypair -v \
+            -keystore TMessagesProj/config/release.keystore \
+            -storepass android \
+            -alias androidkey \
+            -keypass android \
+            -dname "CN=CBSE Edu Desk, OU=Private, O=CBSE Edu Desk, L=Palakkad, ST=Kerala, C=IN" \
+            -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: Build original Telegram Android app
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace :TMessagesProj_App:assembleAfatRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CBSE-Edu-Desk-Telegram-interface-APK
+          path: TMessagesProj_App/build/outputs/apk/afat/release/app.apk
+          if-no-files-found: error
+          retention-days: 14
