@@ -29,6 +29,15 @@ object CloudflareApi {
         post("/v1/auth/login", payload, null, callback)
     }
 
+    fun fetchPartner(token: String, callback: (Result<JSONObject>) -> Unit) {
+        val request = Request.Builder()
+            .url("$baseUrl/v1/contacts")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        execute(request, callback)
+    }
+
     fun fetchMessages(token: String, otherUserId: String, callback: (Result<JSONObject>) -> Unit) {
         val request = Request.Builder()
             .url("$baseUrl/v1/messages?with=$otherUserId")
