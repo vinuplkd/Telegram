@@ -68,22 +68,7 @@ export default {
           "SELECT id, username FROM users WHERE active = 1 AND id <> ? ORDER BY created_at ASC LIMIT 1"
         ).bind(user.sub).first<{ id: string; username: string }>();
         response = json({ partner: partner ?? null });
-      } else if (url.pathname === "/v1/media" && request.method === "POST") {
-        const user = await authenticate(request, env);
-        const recipientId = request.headers.get("X-Recipient-Id") ?? "";
-        const contentType = request.headers.get("Content-Type") ?? "application/octet-stream";
-        const contentLength = Number(request.headers.get("Content-Length") ?? "0");
-        if (!recipientId || !contentLength || contentLength > 15 * 1024 * 1024) throw new HttpError(413, "Attachment must be between 1 byte and 15 MB");
-        const recipient = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND active = 1").bind(recipientId).first();
-        if (!recipient || recipientId === user.sub) throw new HttpError(403, "Invalid conversation partner");
-        const id = crypto.randomUUID();
-        const key = "private/" + id;
-        await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: "application/octet-stream" } });
-        await env.DB.prepare(
-          "INSERT INTO media_objects (id, owner_id, recipient_id, object_key, content_type, byte_size) VALUES (?, ?, ?, ?, ?, ?)"
-        ).bind(id, user.sub, recipientId, key, contentType, contentLength).run();
-        response = json({ mediaId: id, byteSize: contentLength }, 201);
-      } else if (url.pathname.startsWith("/v1/media/") || (url.pathname === "/v1/media" && request.method === "POST")) {
+      } else if (url.pathname.startsWith("/v1/media/") || url.pathname === "/v1/media") {
         await authenticate(request, env);
         throw new HttpError(410, "Server-side attachment storage is disabled in private relay mode");
       } else if (url.pathname === "/v1/messages" && request.method === "GET") {
