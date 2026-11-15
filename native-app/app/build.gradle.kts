@@ -20,7 +20,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "API_BASE_URL", "\"https://configure-cloudflare-worker.workers.dev\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://cbse-edu-desk-api.vinuplkd.workers.dev\"")
     }
 
     buildTypes {
