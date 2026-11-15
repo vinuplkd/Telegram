@@ -123,6 +123,10 @@ export default {
       }
       return response.status === 101 ? response : cors(request, response);
     } catch (error) {
+      console.error("CBSE Edu Desk API error", {
+        path: new URL(request.url).pathname,
+        error: error instanceof Error ? (error.stack ?? error.message) : String(error),
+      });
       const status = error instanceof HttpError ? error.status : 500;
       const message = error instanceof Error ? error.message : "Internal server error";
       return cors(request, json({ error: status === 500 ? "Internal server error" : message }, status));
