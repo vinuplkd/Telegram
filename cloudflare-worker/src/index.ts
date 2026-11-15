@@ -97,6 +97,12 @@ export default {
         const user = await authenticate(request, env);
         const otherId = url.searchParams.get("with");
         if (!otherId) throw new HttpError(400, "Conversation partner is required");
+        // Opening the conversation confirms that incoming messages reached and
+        // were viewed by this authorised recipient. Preserve the first timestamps.
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          "UPDATE messages SET delivered_at = COALESCE(delivered_at, ?), read_at = COALESCE(read_at, ?) WHERE sender_id = ? AND recipient_id = ?"
+        ).bind(now, now, otherId, user.sub).run();
         const rows = await env.DB.prepare(
           "SELECT id, sender_id AS senderId, recipient_id AS recipientId, ciphertext, nonce, attachment_key AS attachmentKey, created_at AS createdAt, delivered_at AS deliveredAt, read_at AS readAt FROM messages WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?) ORDER BY created_at DESC LIMIT 100"
         ).bind(user.sub, otherId, otherId, user.sub).all();
