@@ -221,6 +221,7 @@ class MainActivity : ComponentActivity() {
                                                     .put("nonce", "plain-v1")
                                                     .put("createdAt", response.optString("createdAt"))
                                                 messages = messages + sent
+                                                saveLocalMessages()
                                             }.onFailure { error = it.message ?: "Message could not be sent." }
                                         }
                                     }
@@ -264,6 +265,7 @@ class MainActivity : ComponentActivity() {
                                             event.optString("recipientId") == signedInUserId &&
                                             messages.none { it.optString("id") == event.optString("id") }) {
                                             messages = messages + event
+                                            saveLocalMessages()
                                         }
                                     } catch (_: Exception) { }
                                 }
@@ -280,21 +282,37 @@ class MainActivity : ComponentActivity() {
                         messages = emptyList()
                         loadingMessages = false
                     } else {
-                        CloudflareApi.fetchMessages(sessionToken, partnerId) { messageResult ->
-                            runOnUiThread {
-                                messageResult.onSuccess { result ->
-                                    val array = result.optJSONArray("messages") ?: JSONArray()
-                                    messages = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                                }.onFailure { error = it.message ?: "Could not load messages." }
-                                loadingMessages = false
-                            }
-                        }
+                        // Chat history is restored only from this phone's encrypted local storage.
+                        messages = loadLocalMessages()
+                        loadingMessages = false
                     }
                 }.onFailure {
                     error = it.message ?: "Could not find the other authorised user."
                     loadingMessages = false
                 }
             }
+        }
+    }
+
+    private fun localHistoryKey(): String = "chat_history_" + signedInUserId
+
+    private fun saveLocalMessages() {
+        if (signedInUserId.isBlank()) return
+        val array = JSONArray()
+        messages.forEach { array.put(JSONObject(it.toString())) }
+        SecureVault.put(this, localHistoryKey(), array.toString())
+    }
+
+    private fun loadLocalMessages(): List<JSONObject> {
+        if (signedInUserId.isBlank()) return emptyList()
+        val saved = SecureVault.get(this, localHistoryKey()) ?: return emptyList()
+        return try {
+            val array = JSONArray(saved)
+            (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { JSONObject(it.toString()) }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
