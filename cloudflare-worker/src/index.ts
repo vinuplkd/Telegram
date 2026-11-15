@@ -62,6 +62,12 @@ export default {
         const ttl = Math.min(86400, Math.max(900, Number(env.TOKEN_TTL_SECONDS ?? 43200)));
         const token = await issueToken(env, { sub: user.id, username: user.username, iat: now, exp: now + ttl });
         response = json({ accessToken: token, expiresIn: ttl, user: { id: user.id, username: user.username } });
+      } else if (url.pathname === "/v1/contacts" && request.method === "GET") {
+        const user = await authenticate(request, env);
+        const partner = await env.DB.prepare(
+          "SELECT id, username FROM users WHERE active = 1 AND id <> ? ORDER BY created_at ASC LIMIT 1"
+        ).bind(user.sub).first<{ id: string; username: string }>();
+        response = json({ partner: partner ?? null });
       } else if (url.pathname === "/v1/media" && request.method === "POST") {
         const user = await authenticate(request, env);
         const recipientId = request.headers.get("X-Recipient-Id") ?? "";
