@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -302,74 +304,149 @@ private fun ConversationScreen(
 ) {
     var draft by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().background(Page)) {
-        Row(
-            Modifier.fillMaxWidth().background(Navy).padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(partner.ifBlank { "Private conversation" }, color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(if (partner.isBlank()) "Connecting to your authorised partner…" else "Private two-person space", color = Color(0xFFD7E2F0), fontSize = 12.sp)
+    var openedChat by remember { mutableStateOf(false) }
+    val lastMessage = messages.lastOrNull()
+    val preview = lastMessage?.let {
+        if (it.optString("nonce") == "plain-v1") {
+            try { String(android.util.Base64.decode(it.optString("ciphertext"), android.util.Base64.NO_WRAP), Charsets.UTF_8) }
+            catch (_: Exception) { "Message" }
+        } else "Attachment"
+    } ?: "Tap to start chatting"
+
+    if (!openedChat) {
+        Column(Modifier.fillMaxSize().background(Color(0xFFF5F7FA))) {
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xFF527DA3)).padding(horizontal = 18.dp, vertical = 17.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("☰", color = White, fontSize = 24.sp, modifier = Modifier.padding(end = 22.dp))
+                Text("CBSE Edu Desk", color = White, fontSize = 21.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Text("⌕", color = White, fontSize = 28.sp)
             }
-            TextButton(onClick = onRefresh) { Text("Refresh", color = White) }
-        }
-        if (partner.isBlank()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (loading) CircularProgressIndicator(color = Navy)
-                    else Text("Your other authorised account was not found.", color = Muted)
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xFF527DA3)).padding(horizontal = 18.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp)
+            ) {
+                Text("CHATS", color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("CONTACTS", color = Color(0xFFD7E5F0), fontSize = 13.sp)
+            }
+            if (partner.isBlank()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (loading) CircularProgressIndicator(color = Color(0xFF527DA3))
+                        else Text("Your authorised chat is not available.", color = Muted)
+                        TextButton(onClick = onRefresh) { Text("Retry") }
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().clickable { openedChat = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(54.dp).background(Color(0xFF70A7D2), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(partner.take(1).uppercase(), color = White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(partner, color = Color(0xFF202A33), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(preview, color = Color(0xFF78838D), fontSize = 14.sp, maxLines = 1)
+                    }
+                    Text("now", color = Color(0xFF89939D), fontSize = 11.sp)
+                }
+                HorizontalDivider(color = Color(0xFFE8EBEF), thickness = 0.7.dp)
+                Spacer(Modifier.weight(1f))
+                Row(
+                    Modifier.fillMaxWidth().background(White).padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Text("Chats", color = Color(0xFF527DA3), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Calls", color = Muted, fontSize = 12.sp)
+                    Text("Settings", color = Muted, fontSize = 12.sp)
                 }
             }
-        } else {
+            Row(Modifier.fillMaxWidth().background(White).padding(horizontal = 14.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Signed in as $username", color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onSignOut) { Text("Sign out", color = Muted, fontSize = 11.sp) }
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxSize().background(Color(0xFFE7EBEF))) {
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xFF527DA3)).padding(horizontal = 10.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("‹", color = White, fontSize = 32.sp, modifier = Modifier.clickable { openedChat = false }.padding(horizontal = 9.dp))
+                Box(Modifier.size(42.dp).background(Color(0xFF70A7D2), CircleShape), contentAlignment = Alignment.Center) {
+                    Text(partner.take(1).uppercase(), color = White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(partner, color = White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text("last seen recently", color = Color(0xFFDCE7EF), fontSize = 11.sp)
+                }
+                Text("⋮", color = White, fontSize = 25.sp, modifier = Modifier.clickable { onRefresh() }.padding(horizontal = 8.dp))
+            }
             if (messages.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(if (loading) "Loading conversation…" else "No messages yet", color = Muted)
+                    Surface(color = Color(0xFFEAF2F8), shape = RoundedCornerShape(12.dp)) {
+                        Text(if (loading) "Loading messages…" else "This is the beginning of your private chat.", color = Color(0xFF607383), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
+                    }
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     items(messages, key = { it.optString("id") }) { message ->
                         val mine = message.optString("senderId") == currentUserId
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                             Surface(
-                                color = if (mine) Color(0xFFDCE9FA) else White,
-                                shape = RoundedCornerShape(14.dp),
+                                color = if (mine) Color(0xFFE2FFC7) else White,
+                                shape = RoundedCornerShape(12.dp),
                                 shadowElevation = 1.dp,
-                                modifier = Modifier.widthIn(max = 300.dp)
+                                modifier = Modifier.widthIn(max = 310.dp)
                             ) {
-                                Column(Modifier.padding(12.dp)) {
+                                Column(Modifier.padding(horizontal = 11.dp, vertical = 7.dp)) {
                                     val content = if (message.optString("nonce") == "plain-v1") {
                                         try { String(android.util.Base64.decode(message.optString("ciphertext"), android.util.Base64.NO_WRAP), Charsets.UTF_8) }
                                         catch (_: Exception) { "[Message could not be displayed]" }
-                                    } else "[This message uses an unsupported format]"
-                                    Text(content, color = Navy, fontSize = 14.sp)
-                                    Text(message.optString("createdAt"), color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
+                                    } else "[Attachment]"
+                                    Text(content, color = Color(0xFF202A33), fontSize = 15.sp)
+                                    Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(message.optString("createdAt").take(16).replace("T", " "), color = Color(0xFF82908A), fontSize = 9.sp)
+                                        if (mine) Text("  ✓✓", color = Color(0xFF55A6C7), fontSize = 11.sp)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-            Surface(color = White, shadowElevation = 4.dp) {
-                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color(0xFFF5F5F5), shadowElevation = 3.dp) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("＋", color = Color(0xFF71808C), fontSize = 26.sp, modifier = Modifier.padding(horizontal = 5.dp))
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Write a message…") },
+                        placeholder = { Text("Message") },
                         singleLine = false,
                         maxLines = 4,
+                        shape = RoundedCornerShape(24.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
                             if (draft.isNotBlank() && !sending) {
+                                sending = true
                                 onSendMessage(draft.trim())
                                 draft = ""
+                                sending = false
                             }
                         })
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Button(
                         onClick = {
                             if (draft.isNotBlank() && !sending) {
@@ -380,18 +457,15 @@ private fun ConversationScreen(
                             }
                         },
                         enabled = draft.isNotBlank() && !sending,
-                        colors = ButtonDefaults.buttonColors(containerColor = Navy)
-                    ) { Text("Send") }
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF527DA3)),
+                        shape = CircleShape
+                    ) { Text("➤", color = White, fontSize = 17.sp) }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Signed in: $username", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = onSignOut) { Text("Sign out", color = Navy) }
-        }
     }
 }
-
 
 @Composable
 private fun PinField(value: String, onValueChange: (String) -> Unit, label: String) {
