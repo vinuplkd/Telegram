@@ -3,28 +3,34 @@ package com.cbsedudesk.mobile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Navy = Color(0xFF102B4E)
 private val Page = Color(0xFFF4F7FB)
 private val Muted = Color(0xFF66758A)
+private val White = Color.White
 
 private enum class AppPage { LOGIN, SET_PIN, UNLOCK, HOME }
 
@@ -35,19 +41,18 @@ class MainActivity : ComponentActivity() {
     private var sessionToken by mutableStateOf("")
     private var busy by mutableStateOf(false)
     private var error by mutableStateOf("")
+    private var partnerName by mutableStateOf("")
+    private var partnerId by mutableStateOf("")
+    private var messages by mutableStateOf<List<JSONObject>>(emptyList())
+    private var loadingMessages by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         sessionToken = SecureVault.get(this, "session_token").orEmpty()
         signedInUser = SecureVault.get(this, "username").orEmpty()
         signedInUserId = SecureVault.get(this, "user_id").orEmpty()
         if (sessionToken.isNotBlank() && signedInUser.isNotBlank()) {
-            page = if (SecureVault.get(this, "pin_verifier").isNullOrBlank()) {
-                AppPage.SET_PIN
-            } else {
-                AppPage.UNLOCK
-            }
+            page = if (SecureVault.get(this, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
         }
 
         setContent {
@@ -60,168 +65,189 @@ class MainActivity : ComponentActivity() {
                 val passwordFocusRequester = remember { FocusRequester() }
                 val focusManager = LocalFocusManager.current
 
-                Surface(Modifier.fillMaxSize(), color = Page) {
-                    Column(
-                        Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("CBSE", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                        Text("EDU DESK", color = Navy, fontSize = 31.sp, fontWeight = FontWeight.ExtraBold)
-                        Spacer(Modifier.height(8.dp))
-                        Text("A private space for two authorised users", color = Muted, fontSize = 13.sp)
-                        Spacer(Modifier.height(34.dp))
+                LaunchedEffect(page, sessionToken) {
+                    if (page == AppPage.HOME && sessionToken.isNotBlank()) loadConversation()
+                }
 
-                        when (page) {
-                            AppPage.LOGIN -> {
-                                Text("PRIVATE SIGN IN", color = Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                                Spacer(Modifier.height(18.dp))
-                                OutlinedTextField(
-                                    value = username,
-                                    onValueChange = { username = it; error = "" },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    label = { Text("Assigned username") },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                    keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                OutlinedTextField(
-                                    value = password,
-                                    onValueChange = { password = it; error = "" },
-                                    modifier = Modifier.fillMaxWidth().focusRequester(passwordFocusRequester),
-                                    label = { Text("Private server password") },
-                                    singleLine = true,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                Spacer(Modifier.height(18.dp))
-                                Button(
-                                    onClick = {
-                                        error = ""
-                                        if (username.isBlank() || password.isBlank()) {
-                                            error = "Enter your assigned username and server password."
-                                        } else {
-                                            busy = true
-                                            CloudflareApi.login(username.trim(), password) { result ->
-                                                runOnUiThread {
-                                                    busy = false
-                                                    result.onSuccess { response ->
-                                                        val user = response.optJSONObject("user")
-                                                        val token = response.optString("accessToken")
-                                                        val userName = user?.optString("username").orEmpty()
-                                                        val userId = user?.optString("id").orEmpty()
-                                                        if (token.isBlank() || userName.isBlank() || userId.isBlank()) {
-                                                            error = "The server returned an incomplete sign-in response."
-                                                        } else {
-                                                            sessionToken = token
-                                                            signedInUser = userName
-                                                            signedInUserId = userId
-                                                            SecureVault.put(this@MainActivity, "session_token", token)
-                                                            SecureVault.put(this@MainActivity, "username", userName)
-                                                            SecureVault.put(this@MainActivity, "user_id", userId)
-                                                            password = ""
-                                                            page = if (SecureVault.get(this@MainActivity, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
-                                                        }
-                                                    }.onFailure {
-                                                        error = it.message ?: "Sign-in failed. Please try again."
+                Surface(Modifier.fillMaxSize(), color = Page) {
+                    when (page) {
+                        AppPage.LOGIN -> Column(
+                            Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("CBSE", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+                            Text("EDU DESK", color = Navy, fontSize = 31.sp, fontWeight = FontWeight.ExtraBold)
+                            Spacer(Modifier.height(8.dp))
+                            Text("A private space for two authorised users", color = Muted, fontSize = 13.sp)
+                            Spacer(Modifier.height(34.dp))
+                            Text("PRIVATE SIGN IN", color = Navy, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Spacer(Modifier.height(18.dp))
+                            OutlinedTextField(
+                                value = username,
+                                onValueChange = { username = it; error = "" },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Assigned username") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it; error = "" },
+                                modifier = Modifier.fillMaxWidth().focusRequester(passwordFocusRequester),
+                                label = { Text("Private server password") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(Modifier.height(18.dp))
+                            Button(
+                                onClick = {
+                                    error = ""
+                                    if (username.isBlank() || password.isBlank()) error = "Enter your assigned username and server password."
+                                    else {
+                                        busy = true
+                                        CloudflareApi.login(username.trim(), password) { result ->
+                                            runOnUiThread {
+                                                busy = false
+                                                result.onSuccess { response ->
+                                                    val user = response.optJSONObject("user")
+                                                    val token = response.optString("accessToken")
+                                                    val userName = user?.optString("username").orEmpty()
+                                                    val userId = user?.optString("id").orEmpty()
+                                                    if (token.isBlank() || userName.isBlank() || userId.isBlank()) error = "The server returned an incomplete sign-in response."
+                                                    else {
+                                                        sessionToken = token
+                                                        signedInUser = userName
+                                                        signedInUserId = userId
+                                                        SecureVault.put(this@MainActivity, "session_token", token)
+                                                        SecureVault.put(this@MainActivity, "username", userName)
+                                                        SecureVault.put(this@MainActivity, "user_id", userId)
+                                                        password = ""
+                                                        page = if (SecureVault.get(this@MainActivity, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
                                                     }
-                                                }
+                                                }.onFailure { error = it.message ?: "Sign-in failed. Please try again." }
                                             }
                                         }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                                    enabled = !busy,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Navy),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    if (busy) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
-                                    else Text("SIGN IN", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                enabled = !busy,
+                                colors = ButtonDefaults.buttonColors(containerColor = Navy),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                if (busy) CircularProgressIndicator(color = White, strokeWidth = 2.dp)
+                                else Text("SIGN IN", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            }
+                            if (error.isNotEmpty()) ErrorText(error)
+                            Spacer(Modifier.height(20.dp))
+                            Text("Access is restricted. There is no public registration.", color = Muted, fontSize = 12.sp)
+                        }
+
+                        AppPage.SET_PIN -> Column(
+                            Modifier.fillMaxSize().padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("CREATE YOUR 4-DIGIT PIN", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            Text("This PIN stays on this device. It is not sent to the server.", color = Muted, fontSize = 13.sp)
+                            Spacer(Modifier.height(20.dp))
+                            PinField(pin, { pin = it.take(4).filter(Char::isDigit); localError = "" }, "Create 4-digit PIN")
+                            Spacer(Modifier.height(12.dp))
+                            PinField(confirmPin, { confirmPin = it.take(4).filter(Char::isDigit); localError = "" }, "Confirm 4-digit PIN")
+                            Spacer(Modifier.height(18.dp))
+                            Button(onClick = {
+                                if (pin.length != 4 || confirmPin.length != 4) localError = "Enter four digits in both fields."
+                                else if (pin != confirmPin) { localError = "The PINs do not match. Try again."; confirmPin = "" }
+                                else {
+                                    SecureVault.put(this@MainActivity, "pin_verifier", PinSecurity.createVerifier(pin))
+                                    page = AppPage.HOME
+                                    localError = ""
                                 }
-                                if (error.isNotEmpty()) ErrorText(error)
-                                Spacer(Modifier.height(20.dp))
-                                Text("Access is restricted. There is no public registration.", color = Muted, fontSize = 12.sp)
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Navy)) {
+                                Text("SAVE PIN", fontWeight = FontWeight.Bold)
                             }
+                            if (localError.isNotEmpty()) ErrorText(localError)
+                        }
 
-                            AppPage.SET_PIN -> {
-                                Text("CREATE YOUR 4-DIGIT PIN", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Text("This PIN stays on this device. It is not sent to the server.", color = Muted, fontSize = 13.sp)
-                                Spacer(Modifier.height(20.dp))
-                                PinField(pin, { pin = it.take(4).filter { digit -> digit.isDigit() }; localError = "" }, "Create 4-digit PIN")
-                                Spacer(Modifier.height(12.dp))
-                                PinField(confirmPin, { confirmPin = it.take(4).filter(Char::isDigit); localError = "" }, "Confirm 4-digit PIN")
-                                Spacer(Modifier.height(18.dp))
-                                Button(
-                                    onClick = {
-                                        if (pin.length != 4 || confirmPin.length != 4) {
-                                            localError = "Enter four digits in both fields."
-                                        } else if (pin != confirmPin) {
-                                            localError = "The PINs do not match. Try again."
-                                            confirmPin = ""
-                                        } else {
-                                            SecureVault.put(this@MainActivity, "pin_verifier", PinSecurity.createVerifier(pin))
-                                            page = AppPage.HOME
-                                            localError = ""
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Navy),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) { Text("SAVE PIN", fontWeight = FontWeight.Bold) }
-                                if (localError.isNotEmpty()) ErrorText(localError)
+                        AppPage.UNLOCK -> Column(
+                            Modifier.fillMaxSize().padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("WELCOME BACK", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(6.dp))
+                            Text(signedInUser, color = Muted, fontSize = 14.sp)
+                            Spacer(Modifier.height(22.dp))
+                            PinField(pin, { pin = it.take(4).filter(Char::isDigit); localError = "" }, "Enter your 4-digit PIN")
+                            Spacer(Modifier.height(18.dp))
+                            Button(onClick = {
+                                val verifier = SecureVault.get(this@MainActivity, "pin_verifier")
+                                if (verifier != null && PinSecurity.verify(pin, verifier)) { page = AppPage.HOME; localError = "" }
+                                else { localError = "Incorrect PIN. Please try again."; pin = "" }
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Navy)) {
+                                Text("UNLOCK", fontWeight = FontWeight.Bold)
                             }
+                            if (localError.isNotEmpty()) ErrorText(localError)
+                        }
 
-                            AppPage.UNLOCK -> {
-                                Text("WELCOME BACK", color = Navy, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(6.dp))
-                                Text(signedInUser, color = Muted, fontSize = 14.sp)
-                                Spacer(Modifier.height(22.dp))
-                                PinField(pin, { pin = it.take(4).filter(Char::isDigit); localError = "" }, "Enter your 4-digit PIN")
-                                Spacer(Modifier.height(18.dp))
-                                Button(
-                                    onClick = {
-                                        val verifier = SecureVault.get(this@MainActivity, "pin_verifier")
-                                        if (verifier != null && PinSecurity.verify(pin, verifier)) {
-                                            page = AppPage.HOME
-                                            localError = ""
-                                        } else {
-                                            localError = "Incorrect PIN. Please try again."
-                                            pin = ""
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Navy),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) { Text("UNLOCK", fontWeight = FontWeight.Bold) }
-                                if (localError.isNotEmpty()) ErrorText(localError)
+                        AppPage.HOME -> ConversationScreen(
+                            username = signedInUser,
+                            partner = partnerName,
+                            messages = messages,
+                            loading = loadingMessages,
+                            onRefresh = { loadConversation() },
+                            onSignOut = {
+                                SecureVault.clearSession(this@MainActivity)
+                                SecureVault.remove(this@MainActivity, "pin_verifier")
+                                sessionToken = ""
+                                signedInUser = ""
+                                signedInUserId = ""
+                                partnerName = ""
+                                partnerId = ""
+                                messages = emptyList()
+                                username = ""
+                                page = AppPage.LOGIN
                             }
+                        )
+                    }
+                }
+            }
+        }
+    }
 
-                            AppPage.HOME -> {
-                                Text("PRIVATE MESSENGER", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(12.dp))
-                                Text("Signed in as $signedInUser", color = Navy, fontSize = 16.sp)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Your local PIN lock is active. The chat interface and end-to-end encryption are the next development milestone.", color = Muted, fontSize = 13.sp)
-                                Spacer(Modifier.height(24.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        SecureVault.clearSession(this@MainActivity)
-                                        SecureVault.remove(this@MainActivity, "pin_verifier")
-                                        sessionToken = ""
-                                        signedInUser = ""
-                                        signedInUserId = ""
-                                        username = ""
-                                        page = AppPage.LOGIN
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("SIGN OUT") }
+    private fun loadConversation() {
+        if (sessionToken.isBlank()) return
+        loadingMessages = true
+        CloudflareApi.fetchPartner(sessionToken) { partnerResult ->
+            runOnUiThread {
+                partnerResult.onSuccess { response ->
+                    val partner = response.optJSONObject("partner")
+                    partnerName = partner?.optString("username").orEmpty()
+                    partnerId = partner?.optString("id").orEmpty()
+                    if (partnerId.isBlank()) {
+                        messages = emptyList()
+                        loadingMessages = false
+                    } else {
+                        CloudflareApi.fetchMessages(sessionToken, partnerId) { messageResult ->
+                            runOnUiThread {
+                                messageResult.onSuccess { result ->
+                                    val array = result.optJSONArray("messages") ?: JSONArray()
+                                    messages = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                                }.onFailure { error = it.message ?: "Could not load messages." }
+                                loadingMessages = false
                             }
                         }
                     }
+                }.onFailure {
+                    error = it.message ?: "Could not find the other authorised user."
+                    loadingMessages = false
                 }
             }
         }
@@ -233,6 +259,80 @@ class MainActivity : ComponentActivity() {
             page = if (SecureVault.get(this, "pin_verifier").isNullOrBlank()) AppPage.SET_PIN else AppPage.UNLOCK
         }
     }
+}
+
+@Composable
+private fun ConversationScreen(
+    username: String,
+    partner: String,
+    messages: List<JSONObject>,
+    loading: Boolean,
+    onRefresh: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(Page)) {
+        Row(
+            Modifier.fillMaxWidth().background(Navy).padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(partner.ifBlank { "Private conversation" }, color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(if (partner.isBlank()) "Connecting to your authorised partner…" else "Private two-person space", color = Color(0xFFD7E2F0), fontSize = 12.sp)
+            }
+            TextButton(onClick = onRefresh) { Text("Refresh", color = White) }
+        }
+        if (partner.isBlank()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (loading) CircularProgressIndicator(color = Navy)
+                    else Text("Your other authorised account was not found.", color = Muted)
+                }
+            }
+        } else {
+            if (messages.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(if (loading) "Loading conversation…" else "No messages yet", color = Muted)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messages, key = { it.optString("id") }) { message ->
+                        val mine = message.optString("senderId") == SecureVaultUser.currentId
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                            Surface(
+                                color = if (mine) Color(0xFFDCE9FA) else White,
+                                shape = RoundedCornerShape(14.dp),
+                                shadowElevation = 1.dp,
+                                modifier = Modifier.widthIn(max = 300.dp)
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text("Protected message", color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                    Text("Message content will appear after secure device-to-device encryption is connected.", color = Muted, fontSize = 12.sp)
+                                    Text(message.optString("createdAt"), color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Surface(color = White, shadowElevation = 4.dp) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text("Secure messaging is being completed", color = Navy, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Messages are not yet enabled for sending. I’m implementing device-to-device encryption before activating the message box, so private messages are not exposed.", color = Muted, fontSize = 12.sp)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Signed in: $username", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = onSignOut) { Text("Sign out", color = Navy) }
+        }
+    }
+}
+
+private object SecureVaultUser {
+    var currentId: String = ""
 }
 
 @Composable
