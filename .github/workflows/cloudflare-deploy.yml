@@ -1,0 +1,31 @@
+name: Deploy CBSE Edu Desk Cloudflare API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ private-messenger ]
+    paths:
+      - 'cloudflare-worker/**'
+      - '.github/workflows/cloudflare-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: cloudflare-worker
+        run: npm install
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare-worker
+          command: deploy
