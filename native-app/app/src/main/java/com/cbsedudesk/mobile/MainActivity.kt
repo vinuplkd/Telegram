@@ -212,8 +212,16 @@ class MainActivity : ComponentActivity() {
                                     val encoded = android.util.Base64.encodeToString(text.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
                                     CloudflareApi.sendEncryptedMessage(sessionToken, partnerId, encoded, "plain-v1") { result ->
                                         runOnUiThread {
-                                            result.onSuccess { loadConversation() }
-                                                .onFailure { error = it.message ?: "Message could not be sent." }
+                                            result.onSuccess { response ->
+                                                val sent = JSONObject()
+                                                    .put("id", response.optString("id"))
+                                                    .put("senderId", signedInUserId)
+                                                    .put("recipientId", partnerId)
+                                                    .put("ciphertext", encoded)
+                                                    .put("nonce", "plain-v1")
+                                                    .put("createdAt", response.optString("createdAt"))
+                                                messages = messages + sent
+                                            }.onFailure { error = it.message ?: "Message could not be sent." }
                                         }
                                     }
                                 }
@@ -249,7 +257,16 @@ class MainActivity : ComponentActivity() {
                     if (partnerId.isNotBlank() && liveSocket == null) {
                         liveSocket = CloudflareApi.connectLive(sessionToken, object : okhttp3.WebSocketListener() {
                             override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
-                                runOnUiThread { loadConversation() }
+                                runOnUiThread {
+                                    try {
+                                        val event = JSONObject(text)
+                                        if (event.optString("type") == "message" &&
+                                            event.optString("recipientId") == signedInUserId &&
+                                            messages.none { it.optString("id") == event.optString("id") }) {
+                                            messages = messages + event
+                                        }
+                                    } catch (_: Exception) { }
+                                }
                             }
                             override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
                                 liveSocket = null
