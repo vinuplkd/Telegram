@@ -6,9 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +57,8 @@ class MainActivity : ComponentActivity() {
                 var pin by remember(page) { mutableStateOf("") }
                 var confirmPin by remember(page) { mutableStateOf("") }
                 var localError by remember(page) { mutableStateOf("") }
+                val passwordFocusRequester = remember { FocusRequester() }
+                val focusManager = LocalFocusManager.current
 
                 Surface(Modifier.fillMaxSize(), color = Page) {
                     Column(
@@ -75,17 +82,20 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text("Assigned username") },
                                     singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                    keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 OutlinedTextField(
                                     value = password,
                                     onValueChange = { password = it; error = "" },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().focusRequester(passwordFocusRequester),
                                     label = { Text("Private server password") },
                                     singleLine = true,
                                     visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 Spacer(Modifier.height(18.dp))
