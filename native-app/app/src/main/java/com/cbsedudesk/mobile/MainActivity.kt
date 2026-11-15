@@ -205,6 +205,17 @@ class MainActivity : ComponentActivity() {
                             messages = messages,
                             loading = loadingMessages,
                             onRefresh = { loadConversation() },
+                            onSendMessage = { text ->
+                                if (partnerId.isNotBlank() && text.isNotBlank()) {
+                                    val encoded = android.util.Base64.encodeToString(text.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                                    CloudflareApi.sendEncryptedMessage(sessionToken, partnerId, encoded, "plain-v1") { result ->
+                                        runOnUiThread {
+                                            result.onSuccess { loadConversation() }
+                                                .onFailure { error = it.message ?: "Message could not be sent." }
+                                        }
+                                    }
+                                }
+                            },
                             onSignOut = {
                                 SecureVault.clearSession(this@MainActivity)
                                 SecureVault.remove(this@MainActivity, "pin_verifier")
@@ -286,8 +297,11 @@ private fun ConversationScreen(
     messages: List<JSONObject>,
     loading: Boolean,
     onRefresh: () -> Unit,
+    onSendMessage: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
+    var draft by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(Page)) {
         Row(
             Modifier.fillMaxWidth().background(Navy).padding(horizontal = 18.dp, vertical = 16.dp),
@@ -326,8 +340,11 @@ private fun ConversationScreen(
                                 modifier = Modifier.widthIn(max = 300.dp)
                             ) {
                                 Column(Modifier.padding(12.dp)) {
-                                    Text("Protected message", color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                    Text("Message content will appear after secure device-to-device encryption is connected.", color = Muted, fontSize = 12.sp)
+                                    val content = if (message.optString("nonce") == "plain-v1") {
+                                        try { String(android.util.Base64.decode(message.optString("ciphertext"), android.util.Base64.NO_WRAP), Charsets.UTF_8) }
+                                        catch (_: Exception) { "[Message could not be displayed]" }
+                                    } else "[This message uses an unsupported format]"
+                                    Text(content, color = Navy, fontSize = 14.sp)
                                     Text(message.optString("createdAt"), color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
                                 }
                             }
@@ -336,9 +353,35 @@ private fun ConversationScreen(
                 }
             }
             Surface(color = White, shadowElevation = 4.dp) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("Secure messaging is being completed", color = Navy, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("Messages are not yet enabled for sending. I’m implementing device-to-device encryption before activating the message box, so private messages are not exposed.", color = Muted, fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Write a message…") },
+                        singleLine = false,
+                        maxLines = 4,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = {
+                            if (draft.isNotBlank() && !sending) {
+                                onSendMessage(draft.trim())
+                                draft = ""
+                            }
+                        })
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (draft.isNotBlank() && !sending) {
+                                sending = true
+                                onSendMessage(draft.trim())
+                                draft = ""
+                                sending = false
+                            }
+                        },
+                        enabled = draft.isNotBlank() && !sending,
+                        colors = ButtonDefaults.buttonColors(containerColor = Navy)
+                    ) { Text("Send") }
                 }
             }
         }
