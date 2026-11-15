@@ -199,6 +199,7 @@ class MainActivity : ComponentActivity() {
 
                         AppPage.HOME -> ConversationScreen(
                             username = signedInUser,
+                            currentUserId = signedInUserId,
                             partner = partnerName,
                             messages = messages,
                             loading = loadingMessages,
@@ -264,6 +265,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ConversationScreen(
     username: String,
+    currentUserId: String,
     partner: String,
     messages: List<JSONObject>,
     loading: Boolean,
@@ -299,7 +301,7 @@ private fun ConversationScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.optString("id") }) { message ->
-                        val mine = message.optString("senderId") == SecureVaultUser.currentId
+                        val mine = message.optString("senderId") == currentUserId
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
                             Surface(
                                 color = if (mine) Color(0xFFDCE9FA) else White,
@@ -331,9 +333,6 @@ private fun ConversationScreen(
     }
 }
 
-private object SecureVaultUser {
-    var currentId: String = ""
-}
 
 @Composable
 private fun PinField(value: String, onValueChange: (String) -> Unit, label: String) {
