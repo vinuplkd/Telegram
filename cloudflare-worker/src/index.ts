@@ -83,48 +83,33 @@ export default {
           "INSERT INTO media_objects (id, owner_id, recipient_id, object_key, content_type, byte_size) VALUES (?, ?, ?, ?, ?, ?)"
         ).bind(id, user.sub, recipientId, key, contentType, contentLength).run();
         response = json({ mediaId: id, byteSize: contentLength }, 201);
-      } else if (url.pathname.startsWith("/v1/media/") && request.method === "GET") {
-        const user = await authenticate(request, env);
-        const id = url.pathname.slice("/v1/media/".length);
-        const item = await env.DB.prepare(
-          "SELECT owner_id, recipient_id, object_key FROM media_objects WHERE id = ?"
-        ).bind(id).first<{ owner_id: string; recipient_id: string; object_key: string }>();
-        if (!item || (item.owner_id !== user.sub && item.recipient_id !== user.sub)) throw new HttpError(404, "Attachment not found");
-        const object = await env.MEDIA.get(item.object_key);
-        if (!object) throw new HttpError(404, "Attachment not found");
-        response = new Response(object.body, { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "no-store" } });
+      } else if (url.pathname.startsWith("/v1/media/") || (url.pathname === "/v1/media" && request.method === "POST")) {
+        await authenticate(request, env);
+        throw new HttpError(410, "Server-side attachment storage is disabled in private relay mode");
       } else if (url.pathname === "/v1/messages" && request.method === "GET") {
-        const user = await authenticate(request, env);
-        const otherId = url.searchParams.get("with");
-        if (!otherId) throw new HttpError(400, "Conversation partner is required");
-        // Opening the conversation confirms that incoming messages reached and
-        // were viewed by this authorised recipient. Preserve the first timestamps.
-        const now = new Date().toISOString();
-        await env.DB.prepare(
-          "UPDATE messages SET delivered_at = COALESCE(delivered_at, ?), read_at = COALESCE(read_at, ?) WHERE sender_id = ? AND recipient_id = ?"
-        ).bind(now, now, otherId, user.sub).run();
-        const rows = await env.DB.prepare(
-          "SELECT id, sender_id AS senderId, recipient_id AS recipientId, ciphertext, nonce, attachment_key AS attachmentKey, created_at AS createdAt, delivered_at AS deliveredAt, read_at AS readAt FROM messages WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?) ORDER BY created_at DESC LIMIT 100"
-        ).bind(user.sub, otherId, otherId, user.sub).all();
-        response = json({ messages: rows.results.reverse() });
+        await authenticate(request, env);
+        // Message history is intentionally not stored on the server.
+        response = json({ messages: [] });
       } else if (url.pathname === "/v1/messages" && request.method === "POST") {
         const user = await authenticate(request, env);
-        const input = await body<{ recipientId: string; ciphertext: string; nonce: string; attachmentKey?: string }>(request);
-        if (!input.recipientId || !input.ciphertext || !input.nonce) throw new HttpError(400, "Encrypted message fields are required");
+        const input = await body<{ recipientId: string; ciphertext: string; nonce: string }>(request);
+        if (!input.recipientId || !input.ciphertext || !input.nonce) throw new HttpError(400, "Message fields are required");
         const recipient = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND active = 1").bind(input.recipientId).first();
         if (!recipient || input.recipientId === user.sub) throw new HttpError(403, "Invalid conversation partner");
         if (input.ciphertext.length > 20000 || input.nonce.length > 256) throw new HttpError(413, "Message too large");
         const id = crypto.randomUUID();
-        await env.DB.prepare(
-          "INSERT INTO messages (id, sender_id, recipient_id, ciphertext, nonce, attachment_key) VALUES (?, ?, ?, ?, ?, ?)"
-        ).bind(id, user.sub, input.recipientId, input.ciphertext, input.nonce, input.attachmentKey ?? null).run();
+        const createdAt = new Date().toISOString();
         const room = env.CHAT_ROOMS.get(env.CHAT_ROOMS.idFromName("two-person-chat"));
         await room.fetch(new Request("https://chat-room/broadcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "message", id, senderId: user.sub, recipientId: input.recipientId })
+          body: JSON.stringify({
+            type: "message", id, senderId: user.sub, senderName: user.username,
+            recipientId: input.recipientId, ciphertext: input.ciphertext,
+            nonce: input.nonce, createdAt
+          })
         }));
-        response = json({ id, accepted: true }, 201);
+        response = json({ id, accepted: true, createdAt }, 201);
       } else if (url.pathname === "/v1/live" && request.method === "GET") {
         await authenticate(request, env);
         if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") throw new HttpError(426, "WebSocket upgrade required");
